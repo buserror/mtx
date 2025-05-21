@@ -19,6 +19,16 @@
 *      Change output from stdout to stderr
 */
 
+#include <cstdio>
+#include <cstddef>
+#include <cstring>
+#include "sg_err.h"
+
+// For SCSI status codes like CHECK_CONDITION
+#include <scsi/scsi.h>
+// For struct sg_io_hdr etc.
+#include <scsi/sg.h>
+
 #define OUTP stderr
 
 static const unsigned char scsi_command_size[8] = { 6, 10, 10, 12,

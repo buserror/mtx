@@ -28,13 +28,15 @@ $Revision: 188 $
 #include "mtx.h"
 #include "mtxl.h"
 
+char *argv0; /* program name for FatalError */
+
 /* This is a TOTALLY UNDOCUMENTED feature to read the debug data buffer
  * in an Exabyte Mammoth II and dump it to a file:
  */
 
 static RequestSense_T *DumpM2DebugBuff(DEVICE_TYPE MediumChangerFD, int outfile) 
 {
-  RequestSense_T *RequestSense = xmalloc(sizeof(RequestSense_T));
+  RequestSense_T *RequestSense = (RequestSense_T *)xmalloc(sizeof(RequestSense_T));
   CDB_T CDB;
 
   unsigned char *databuffer;
@@ -90,6 +92,7 @@ static void usage(void) {
 /* Now for the actual main() routine: */
 
 int main(int argc,char** argv) {
+  argv0 = argv[0]; /* store program name */
   DEVICE_TYPE changer_fd;
   static RequestSense_T *result;
   int outfile;

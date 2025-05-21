@@ -27,6 +27,8 @@
 
 #include "mtx.h"
 
+extern char *argv0; /* Program name for FatalError messages */
+
 #undef min
 #undef max
 

@@ -13,145 +13,51 @@
 #ifndef MTX_H  /* protect against multiple includes... */
 #define MTX_H 1
 
-/* surround all the Unix-stuff w/ifndef VMS */
-#ifdef VMS
-#include "[.vms]defs.h"
-#else /* all the Unix stuff:  */
-
-#ifdef _MSC_VER
-#include "msvc/config.h"  /* all the autoconf stuff. */
-#else
-#include "config.h"  /* all the autoconf stuff. */
-#endif
-
+/* Start of Unix specific definitions */
 /* all the general Unix includes: */
-
 #include <stdio.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdarg.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/param.h>
 
-#if HAVE_STDLIB_H
-#  include <stdlib.h>
-#endif
+/* Linux SCSI includes (sg interface) */
+#include <scsi/scsi.h>
+#include <scsi/scsi_ioctl.h>
+#include <scsi/sg.h>
+typedef int DEVICE_TYPE; /* Using int for DEVICE_TYPE with sg interface */
+#define HAVE_GET_ID_LUN 1  /* Assuming sg interface provides necessary features for SCSI_GetIDLun */
 
-#if HAVE_FCNTL_H
-#  include <fcntl.h>
-#endif
-
-#if HAVE_SYS_TYPES_H
-#  include <sys/types.h>
-#endif
-
-#if HAVE_STRING_H
-# include <string.h>
+/* Determine endianness for bitfields */
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  #define LITTLE_ENDIAN_BITFIELDS 1
+#elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define BIG_ENDIAN_BITFIELDS 1
+#elif defined(__linux__) /* Fallback for some compilers or older systems on Linux */
+  #include <endian.h>
+  #if __BYTE_ORDER == __LITTLE_ENDIAN
+    #define LITTLE_ENDIAN_BITFIELDS 1
+  #elif __BYTE_ORDER == __BIG_ENDIAN
+    #define BIG_ENDIAN_BITFIELDS 1
+  #else
+    #error "Cannot determine endianness from endian.h on Linux"
+  #endif
 #else
-# include <strings.h>
+  #error "Cannot determine endianness: __BYTE_ORDER__ not defined and not Linux"
 #endif
 
-#if HAVE_UNISTD_H
-#  include <unistd.h>
+/* Sanity check: Ensure exactly one of BIG_ENDIAN_BITFIELDS or LITTLE_ENDIAN_BITFIELDS is defined */
+#if defined(LITTLE_ENDIAN_BITFIELDS) && defined(BIG_ENDIAN_BITFIELDS)
+  #error "Logic error: Both LITTLE_ENDIAN_BITFIELDS and BIG_ENDIAN_BITFIELDS are defined!"
 #endif
-
-#if HAVE_STDARG_H
-#  include <stdarg.h>
-#endif
-
-#if HAVE_SYS_STAT_H
-# include <sys/stat.h>
-#endif
-
-#if HAVE_SYS_IOCTL_H
-#  include <sys/ioctl.h>
-#endif
-
-#if HAVE_SYS_PARAM_H
-#  include <sys/param.h>
-#endif
-
-/* Now greatly modified to use GNU Autoconf stuff: */
-/* If we use the 'sg' interface, like Linux, do this: */
-#if HAVE_SCSI_SG_H
-#  include <scsi/scsi.h>
-#  include <scsi/scsi_ioctl.h>
-#  include <scsi/sg.h>
-typedef int DEVICE_TYPE; /* the sg interface uses this. */
-#  define HAVE_GET_ID_LUN 1  /* signal that we have it... */
-#endif
-
-/* Windows Native programs built using MinGW */
-#if HAVE_DDK_NTDDSCSI_H
-#  include <windows.h>
-#  include <ddk/ntddscsi.h>
-#  undef DEVICE_TYPE
-
-typedef int DEVICE_TYPE;
-#endif
-
-/* Windows Native programs built using Microsoft Visual C */
-#ifdef _MSC_VER
-#  include <windows.h>
-#  include <winioctl.h>
-#  include <ntddscsi.h>
-#  undef DEVICE_TYPE
-
-typedef int DEVICE_TYPE;
-#endif
-
-/* The 'cam' interface, like FreeBSD: */
-#if HAVE_CAMLIB_H
-#  include <camlib.h> /* easy (?) access to the CAM user library. */
-#  include <cam/cam_ccb.h>
-#  include <cam/scsi/scsi_message.h> /* sigh sigh sigh! */
-typedef struct cam_device *DEVICE_TYPE;
-#endif
-
-
-/* the 'uscsi' interface, as used on Solaris: */
-#if HAVE_SYS_SCSI_IMPL_USCSI_H
-#include <sys/scsi/impl/uscsi.h>
-typedef int DEVICE_TYPE;
-#endif
-
-/* the scsi_ctl interface, as used on HP/UX: */
-#if HAVE_SYS_SCSI_CTL_H
-#  include <sys/wsio.h>
-#  include <sys/spinlock.h>
-#  include <sys/scsi.h>
-#  include <sys/scsi_ctl.h>
-  typedef int DEVICE_TYPE;
-#  ifndef VERSION
-#     define VERSION "1.2.12 hbb"
-#  endif
-#endif
-
-/* the 'gsc' interface, as used on AIX: */
-#if HAVE_SYS_GSCDDS_H
-#   include <sys/gscdds.h>
-    typedef int DEVICE_TYPE;
-#endif
-
-   /* the 'dslib' interface, as used on SGI.  */
-#if HAVE_DSLIB_H
-#include <dslib.h>
-typedef dsreq_t *DEVICE_TYPE; /* 64-bit pointers/32bit int on later sgi? */
-#endif
-
-
-#if ((defined(__alpha) && defined(__osf__)) || \
-     defined(ultrix) || defined(__ultrix))
-#include "du/defs.h"
-#endif
-
-
-#endif /* VMS protect. */
-
-/* Do a test for LITTLE_ENDIAN_BITFIELDS. Use WORDS_BIGENDIAN as set
- * by configure: 
- */
-
-#if WORDS_BIGENDIAN
-# define BIG_ENDIAN_BITFIELDS
-#else
-# define LITTLE_ENDIAN_BITFIELDS
+#if !defined(LITTLE_ENDIAN_BITFIELDS) && !defined(BIG_ENDIAN_BITFIELDS)
+  #error "Logic error: Neither LITTLE_ENDIAN_BITFIELDS nor BIG_ENDIAN_BITFIELDS is defined!"
 #endif
 
 /* Get rid of some Hocky Pux defines: */
@@ -595,5 +501,7 @@ typedef struct NSM_Result {
   unsigned char ces_code[2]; 
   unsigned char return_data[0xffff]; /* egregioius overkill */
 } NSM_Result_T;
+
+#include "mtxl.h" /* For FatalError and other utility function prototypes */
 
 #endif  /* of multi-include protection. */

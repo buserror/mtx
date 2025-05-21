@@ -52,9 +52,7 @@
 #endif
 
 /* the 'sg' interface is used on Linux. */
-#if HAVE_SCSI_SG_H
 #	include "scsi_linux.cpp"
-#endif
 
 /* the IOCTL_SCSI_PASSTHROUGH interface is used on Windows. */
 #if HAVE_DDK_NTDDSCSI_H || defined(_MSC_VER)
@@ -234,17 +232,6 @@ void FatalError(char *ErrorMessage, ...)
 	sys$exit(VMS_ExitCode);
 #endif
 }
-
-#if !HAVE_MEMSET
-/* This is a really slow and stupid 'bzero' implementation'... */
-void *memset(void *_Dst, int _Val, size_t _Size)
-{
-	while (_Size-- > 0)
-	{
-		*buffer++ = _Val;
-	}
-}
-#endif
 
 /* malloc some memory while checking for out-of-memory conditions. */
 void *xmalloc(size_t Size)
