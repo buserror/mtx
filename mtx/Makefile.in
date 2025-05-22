@@ -118,7 +118,6 @@ clean:
 	rm -f $(DBGS)
 	rm -f $(MAN_HTML)
 	rm -f $(MAN_TXT)
-	rm -f mam2debug@EXEEXT@ mam2debug2@EXEEXT@
 	rm -rf autom4te.cache
 
 distclean: clean
@@ -136,14 +135,8 @@ nsmhack@EXEEXT@: nsmhack.o mtxl.o $(EXTRA)
 mtx@EXEEXT@: mtx.o mtxl.o mtxl.h mtx.h $(EXTRA)
 	$(CXX) $(LDFLAGS) -o mtx@EXEEXT@ mtx.o mtxl.o $(EXTRA) $(LIBS)
 
-mam2debug@EXEEXT@: mtxl.o mam2debug.o mtx.h $(EXTRA)	
-	$(CXX) $(LDFLAGS) -o mam2debug@EXEEXT@ mtxl.o mam2debug.o $(EXTRA) $(LIBS)
-
 tapeinfo@EXEEXT@: tapeinfo.o mtxl.o mtx.h mtxl.h $(EXTRA)
 	$(CXX) $(LDFLAGS) -o tapeinfo@EXEEXT@ tapeinfo.o mtxl.o $(EXTRA) $(LIBS)
-
-mam2debug2@EXEEXT@: mtxl.o mam2debug2.o mtx.h $(EXTRA)
-	$(CXX) $(LDFLAGS) -o mam2debug2@EXEEXT@ mtxl.o mam2debug2.o $(EXTRA) $(LIBS)
 
 scsitape@EXEEXT@: scsitape.o mtxl.o mtxl.h mtx.h $(EXTRA)
 	$(CXX) $(LDFLAGS) -o scsitape@EXEEXT@ scsitape.o mtxl.o $(EXTRA) $(LIBS)
@@ -158,10 +151,6 @@ scsieject.o: scsieject.cpp mtx.h mtxl.h
 loaderinfo.o: loaderinfo.cpp mtx.h mtxl.h
 
 tapeinfo.o: tapeinfo.cpp mtx.h mtxl.h
-
-mam2debug.o: mam2debug.cpp mtx.h mtxl.h
-
-mam2debug2.o: mam2debug2.cpp mtx.h mtxl.h
 
 mtx.o: mtx.cpp mtx.h mtxl.h
 
