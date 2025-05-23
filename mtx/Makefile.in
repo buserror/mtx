@@ -3,7 +3,7 @@
 # USE GMAKE, NOT REGULAR BSD MAKE!)
 #
 # Valid targets:
-#  linux86 freebsd86 solarissparc sgi dec vms 
+#  linux mingw
 #
 # Makefile changes by Lars Kellogg-Stedman for better integration with
 # GNU Autoconf. 
@@ -47,46 +47,6 @@ endif
 
 ifeq ($(TARGET),mingw)
 CFLAGS += -Wall
-endif
-
-#
-# FreeBSD
-#
-ifeq ($(TARGET),freebsd86)
-LIBS		+= -lcam
-endif
-
-ifeq ($(TARGET),hpux)
-CFLAGS += -O -D_HPUX_SOURCE -D __hpux__ 
-endif
-
-#
-# Solaris/SPARC
-#
-ifeq ($(TARGET),solarissparc)
-CFLAGS		+= -O6
-endif
-
-#
-# SGI IRIX
-#
-ifeq ($(TARGET),sgi)
-CFLAGS		+= -O6
-LIBS		+= -lds
-endif
-
-#
-# Digital Unix
-#
-ifeq ($(TARGET),dec)
-CFLAGS		+= -O
-endif
-
-#
-# OpenVMS (see vms/000readme)
-#
-ifeq ($(TARGET),vms)
-See vms/000readme for information.
 endif
 
 %.dbg : %@EXEEXT@

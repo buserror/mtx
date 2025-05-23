@@ -92,8 +92,7 @@ static int arg1 = -1;			/* first arg to command */
 static int arg2 = -1;			/* second arg to command */
 static int arg3 = -1;			/* third arg to command, if exchange. */
 
-static bool json_output = false; /* output status in JSON format */
-
+static bool S_status_json_requested = false; /* Flag for JSON output with status command */
 static SCSI_Flags_T SCSI_Flags = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 static Inquiry_T *inquiry_info;		/* needed by MoveMedium etc... */
@@ -123,6 +122,29 @@ static void Invert2(void);
 static void Exchange(void);
 static void AltReadElementStatus(void);
 
+// Forward declaration for Status_JSON and Status, used by Status_dispatcher_command
+static void Status_JSON(void); // Signature changed
+static void Status(void);
+
+static void Status_dispatcher_command(void)
+{
+	if (S_status_json_requested) {
+		// Ensure inquiry_info and ElementStatus are populated, which execute_command should do
+		// based on need_status=1 in command_table.
+		if (!inquiry_info || !ElementStatus) {
+			// This is a safeguard; ideally, execute_command ensures these are ready.
+			// If not, Status_JSON will also print an error, but this prevents a crash.
+			fprintf(stderr, "Error: Data for JSON status not available.\n");
+			// Potentially print a minimal JSON error
+			// fprintf(stdout, "{\n  \"error\": \"Critical data unavailable for JSON status\"\n}\n");
+			return; 
+		}
+		Status_JSON(); // Call updated
+	} else {
+		Status();
+	}
+}
+
 struct command_table_struct
 {
 	int num_args;
@@ -134,7 +156,7 @@ struct command_table_struct
 command_table[] =
 {
 	{ 0, "inquiry",ReportInquiry, 1,0},
-	{ 0, "status", Status, 1,1 },
+	{ 0, "status", Status_dispatcher_command, 1,1 },
 	{ 0, "invert", InvertCommand, 0,0},
 	{ 0, "noattach",NoAttach,0,0},
 	{ 1, "eepos", Eepos, 0,0},
@@ -175,11 +197,7 @@ static void Usage()
 	mtx [ -f <loader-dev> ] [altres] position <storage-element-number>\n\
 	mtx [ -f <loader-dev> ] eject\n");
 
-#ifndef VMS
 	exit(1);
-#else
-	sys$exit(VMS_ExitCode);
-#endif
 }
 
 
@@ -482,171 +500,175 @@ static void ReportInquiry(void)
 	free(Inquiry);		/* well, we're about to exit, but ... */
 }
 
+static void Status_JSON(void) // Signature changed
+{
+    fprintf(stdout, "{\n");
+
+    // deviceInfo
+    fprintf(stdout, "  \"deviceInfo\": {\n");
+    fprintf(stdout, "    \"productType\": \"%s\",\n", 
+            PeripheralDeviceType[inquiry_info->PeripheralDeviceType]); // Used inquiry_info
+    char vendorId[sizeof(inquiry_info->VendorIdentification) + 1] = {0}; // Used inquiry_info
+    memcpy(vendorId, inquiry_info->VendorIdentification, 
+           sizeof(inquiry_info->VendorIdentification)); // Used inquiry_info
+    fprintf(stdout, "    \"vendorId\": \"%s\",\n", vendorId);
+    char productId[sizeof(inquiry_info->ProductIdentification) + 1] = {0}; // Used inquiry_info
+    memcpy(productId, inquiry_info->ProductIdentification, 
+           sizeof(inquiry_info->ProductIdentification)); // Used inquiry_info
+    fprintf(stdout, "    \"productId\": \"%s\",\n", productId);
+    char revision[sizeof(inquiry_info->ProductRevisionLevel) + 1] = {0}; // Used inquiry_info
+    memcpy(revision, inquiry_info->ProductRevisionLevel, 
+           sizeof(inquiry_info->ProductRevisionLevel)); // Used inquiry_info
+    fprintf(stdout, "    \"revision\": \"%s\",\n", revision);
+    fprintf(stdout, "    \"attachedChangerApi\": %s\n", 
+            inquiry_info->MChngr ? "true" : "false"); // Used inquiry_info
+    fprintf(stdout, "  },\n");
+
+    // changerStatus
+    fprintf(stdout, "  \"changerStatus\": {\n");
+    fprintf(stdout, "    \"device\": \"%s\",\n", 
+            device ? device : "Unknown"); // Used device
+    fprintf(stdout, "    \"driveCount\": %d,\n", 
+            ElementStatus->DataTransferElementCount); // Used ElementStatus
+    fprintf(stdout, "    \"slotCount\": %d,\n", 
+            ElementStatus->StorageElementCount); // Used ElementStatus
+    fprintf(stdout, "    \"importExportCount\": %d\n", 
+            ElementStatus->ImportExportCount); // Used ElementStatus
+    fprintf(stdout, "  },\n");
+
+    // dataTransferElements
+    fprintf(stdout, "  \"dataTransferElements\": [\n");
+    for (int i = 0; i < ElementStatus->DataTransferElementCount; i++) { // Used ElementStatus
+        fprintf(stdout, "    {\n");
+        fprintf(stdout, "      \"elementNumber\": %d,\n", i);
+        if (ElementStatus->DataTransferElementFull[i]) { // Used ElementStatus
+            fprintf(stdout, "      \"status\": \"Full\""); 
+            if (ElementStatus->DataTransferElementSourceStorageElementNumber[i] > -1) { // Used ElementStatus
+                fprintf(stdout, ",\n      \"loadedStorageElement\": %d", 
+                        ElementStatus->DataTransferElementSourceStorageElementNumber[i] + 1); // Used ElementStatus
+            } else {
+                fprintf(stdout, ",\n      \"loadedStorageElement\": \"Unknown\"");
+            }
+            if (ElementStatus->DataTransferPrimaryVolumeTag[i][0]) { // Used ElementStatus
+                fprintf(stdout, ",\n      \"primaryVolumeTag\": \"%s\"", 
+                        (char *)ElementStatus->DataTransferPrimaryVolumeTag[i]); // Used ElementStatus
+            }
+            if (ElementStatus->DataTransferAlternateVolumeTag[i][0]) { // Used ElementStatus
+                fprintf(stdout, ",\n      \"alternateVolumeTag\": \"%s\"", 
+                        (char *)ElementStatus->DataTransferAlternateVolumeTag[i]); // Used ElementStatus
+            }
+            fprintf(stdout, "\n");
+        } else {
+            fprintf(stdout, "      \"status\": \"Empty\"\n");
+        }
+        fprintf(stdout, "    }");
+        if (i < ElementStatus->DataTransferElementCount - 1) { // Used ElementStatus
+            fprintf(stdout, ",");
+        }
+        fprintf(stdout, "\n");
+    }
+    fprintf(stdout, "  ],\n");
+
+    // storageElements
+    fprintf(stdout, "  \"storageElements\": [\n");
+    for (int i = 0; i < ElementStatus->StorageElementCount; i++) { // Used ElementStatus
+        fprintf(stdout, "    {\n");
+        fprintf(stdout, "      \"elementNumber\": %d,\n", i + 1);
+        fprintf(stdout, "      \"isImportExport\": %s,\n", 
+                ElementStatus->StorageElementIsImportExport[i] ? "true" : "false"); // Used ElementStatus
+        if (ElementStatus->StorageElementFull[i]) { // Used ElementStatus
+            fprintf(stdout, "      \"status\": \"Full\""); 
+            if (ElementStatus->PrimaryVolumeTag[i][0]) { // Used ElementStatus
+                fprintf(stdout, ",\n      \"primaryVolumeTag\": \"%s\"", 
+                        (char *)ElementStatus->PrimaryVolumeTag[i]); // Used ElementStatus
+            }
+            if (ElementStatus->AlternateVolumeTag[i][0]) { // Used ElementStatus
+                fprintf(stdout, ",\n      \"alternateVolumeTag\": \"%s\"", 
+                        (char *)ElementStatus->AlternateVolumeTag[i]); // Used ElementStatus
+            }
+            fprintf(stdout, "\n");
+        } else {
+            fprintf(stdout, "      \"status\": \"Empty\"\n");
+        }
+        fprintf(stdout, "    }");
+        if (i < ElementStatus->StorageElementCount - 1) { // Used ElementStatus
+            fprintf(stdout, ",");
+        }
+        fprintf(stdout, "\n");
+    }
+    fprintf(stdout, "  ]\n");
+
+    fprintf(stdout, "}\n");
+}
+
 static void Status(void)
 {
-    if (json_output) {
-        if (!inquiry_info) {
-            // This case should ideally be handled by parse_args ensuring inquiry_info is loaded for status,
-            // or load it here if absolutely necessary (though it implies a logic flaw elsewhere if it's not loaded)
-            // For now, assume inquiry_info is populated.
-            // If not, print an error JSON or fallback. For robustness, a check is good:
-            fprintf(stdout, "{\n  \"error\": \"Inquiry data not available\"\n}\n");
-            return;
-        }
+    // Original text-based status printing logic starts here
+    int StorageElementNumber;
+    int TransferElementNumber;
 
-        fprintf(stdout, "{\n");
-
-        // deviceInfo
-        fprintf(stdout, "  \"deviceInfo\": {\n");
-        fprintf(stdout, "    \"productType\": \"%s\",\n", PeripheralDeviceType[inquiry_info->PeripheralDeviceType]);
-        char vendorId[sizeof(inquiry_info->VendorIdentification) + 1] = {0};
-        memcpy(vendorId, inquiry_info->VendorIdentification, sizeof(inquiry_info->VendorIdentification));
-        fprintf(stdout, "    \"vendorId\": \"%s\",\n", vendorId);
-        char productId[sizeof(inquiry_info->ProductIdentification) + 1] = {0};
-        memcpy(productId, inquiry_info->ProductIdentification, sizeof(inquiry_info->ProductIdentification));
-        fprintf(stdout, "    \"productId\": \"%s\",\n", productId);
-        char revision[sizeof(inquiry_info->ProductRevisionLevel) + 1] = {0};
-        memcpy(revision, inquiry_info->ProductRevisionLevel, sizeof(inquiry_info->ProductRevisionLevel));
-        fprintf(stdout, "    \"revision\": \"%s\",\n", revision);
-        fprintf(stdout, "    \"attachedChangerApi\": %s\n", inquiry_info->MChngr ? "true" : "false");
-        fprintf(stdout, "  },\n");
-
-        // changerStatus
-        fprintf(stdout, "  \"changerStatus\": {\n");
-        fprintf(stdout, "    \"device\": \"%s\",\n", device ? device : "Unknown"); // global 'device'
-        fprintf(stdout, "    \"driveCount\": %d,\n", ElementStatus->DataTransferElementCount);
-        fprintf(stdout, "    \"slotCount\": %d,\n", ElementStatus->StorageElementCount);
-        fprintf(stdout, "    \"importExportCount\": %d\n", ElementStatus->ImportExportCount);
-        fprintf(stdout, "  },\n");
-
-        // dataTransferElements
-        fprintf(stdout, "  \"dataTransferElements\": [\n");
-        for (int i = 0; i < ElementStatus->DataTransferElementCount; i++) {
-            fprintf(stdout, "    {\n");
-            fprintf(stdout, "      \"elementNumber\": %d,\n", i);
-            if (ElementStatus->DataTransferElementFull[i]) {
-                fprintf(stdout, "      \"status\": \"Full\""); // No comma if it's the last base property
-                if (ElementStatus->DataTransferElementSourceStorageElementNumber[i] > -1) {
-                    fprintf(stdout, ",\n      \"loadedStorageElement\": %d", ElementStatus->DataTransferElementSourceStorageElementNumber[i] + 1);
-                } else {
-                    fprintf(stdout, ",\n      \"loadedStorageElement\": \"Unknown\"");
-                }
-                if (ElementStatus->DataTransferPrimaryVolumeTag[i][0]) {
-                    fprintf(stdout, ",\n      \"primaryVolumeTag\": \"%s\"", (char *)ElementStatus->DataTransferPrimaryVolumeTag[i]);
-                }
-                if (ElementStatus->DataTransferAlternateVolumeTag[i][0]) {
-                    fprintf(stdout, ",\n      \"alternateVolumeTag\": \"%s\"", (char *)ElementStatus->DataTransferAlternateVolumeTag[i]);
-                }
-                fprintf(stdout, "\n");
-            } else {
-                fprintf(stdout, "      \"status\": \"Empty\"\n");
-            }
-            fprintf(stdout, "    }");
-            if (i < ElementStatus->DataTransferElementCount - 1) {
-                fprintf(stdout, ",");
-            }
-            fprintf(stdout, "\n");
-        }
-        fprintf(stdout, "  ],\n");
-
-        // storageElements
-        fprintf(stdout, "  \"storageElements\": [\n");
-        for (int i = 0; i < ElementStatus->StorageElementCount; i++) {
-            fprintf(stdout, "    {\n");
-            fprintf(stdout, "      \"elementNumber\": %d,\n", i + 1);
-            fprintf(stdout, "      \"isImportExport\": %s,\n", ElementStatus->StorageElementIsImportExport[i] ? "true" : "false");
-            if (ElementStatus->StorageElementFull[i]) {
-                fprintf(stdout, "      \"status\": \"Full\""); // No comma if it's the last base property
-                if (ElementStatus->PrimaryVolumeTag[i][0]) {
-                    fprintf(stdout, ",\n      \"primaryVolumeTag\": \"%s\"", (char *)ElementStatus->PrimaryVolumeTag[i]);
-                }
-                if (ElementStatus->AlternateVolumeTag[i][0]) {
-                    fprintf(stdout, ",\n      \"alternateVolumeTag\": \"%s\"", (char *)ElementStatus->AlternateVolumeTag[i]);
-                }
-                fprintf(stdout, "\n");
-            } else {
-                fprintf(stdout, "      \"status\": \"Empty\"\n");
-            }
-            fprintf(stdout, "    }");
-            if (i < ElementStatus->StorageElementCount - 1) {
-                fprintf(stdout, ",");
-            }
-            fprintf(stdout, "\n");
-        }
-        fprintf(stdout, "  ]\n");
-
-        fprintf(stdout, "}\n");
-    } else {
-        // Existing status printing logic
-        int StorageElementNumber;
-        int TransferElementNumber;
-
-        printf( "  Storage Changer %s:%d Drives, %d Slots ( %d Import/Export )\n",
-                device,
-                ElementStatus->DataTransferElementCount,
-                ElementStatus->StorageElementCount,
-                ElementStatus->ImportExportCount);
+    printf( "  Storage Changer %s:%d Drives, %d Slots ( %d Import/Export )\n",
+            device,
+            ElementStatus->DataTransferElementCount,
+            ElementStatus->StorageElementCount,
+            ElementStatus->ImportExportCount);
 
 
-        for (TransferElementNumber = 0; 
-             TransferElementNumber < ElementStatus->DataTransferElementCount;
-             TransferElementNumber++)
+    for (TransferElementNumber = 0; 
+         TransferElementNumber < ElementStatus->DataTransferElementCount;
+         TransferElementNumber++)
+    {
+        
+        printf("Data Transfer Element %d:", TransferElementNumber);
+        if (ElementStatus->DataTransferElementFull[TransferElementNumber])
         {
-            
-            printf("Data Transfer Element %d:", TransferElementNumber);
-            if (ElementStatus->DataTransferElementFull[TransferElementNumber])
+            if (ElementStatus->DataTransferElementSourceStorageElementNumber[TransferElementNumber] > -1)
             {
-                if (ElementStatus->DataTransferElementSourceStorageElementNumber[TransferElementNumber] > -1)
-                {
-                    printf("Full (Storage Element %d Loaded)",
-                            ElementStatus->DataTransferElementSourceStorageElementNumber[TransferElementNumber]+1);
-                }
-                else
-                {
-                    printf("Full (Unknown Storage Element Loaded)");
-                }
-
-                if (ElementStatus->DataTransferPrimaryVolumeTag[TransferElementNumber][0])
-                {
-                    printf(":VolumeTag = %s", (char *)ElementStatus->DataTransferPrimaryVolumeTag[TransferElementNumber]);
-                }
-
-                if (ElementStatus->DataTransferAlternateVolumeTag[TransferElementNumber][0])
-                {
-                    printf(":AlternateVolumeTag = %s", (char *)ElementStatus->DataTransferAlternateVolumeTag[TransferElementNumber]); 
-                }
-                putchar('\n');
+                printf("Full (Storage Element %d Loaded)",
+                        ElementStatus->DataTransferElementSourceStorageElementNumber[TransferElementNumber]+1);
             }
             else
             {
-                printf("Empty\n");
-            }
-        }
-
-        for (StorageElementNumber = 0;
-             StorageElementNumber < ElementStatus->StorageElementCount;
-             StorageElementNumber++)
-        {
-            printf(	"      Storage Element %d%s:%s", StorageElementNumber + 1,
-                    (ElementStatus->StorageElementIsImportExport[StorageElementNumber]) ? " IMPORT/EXPORT" : "",
-                    (ElementStatus->StorageElementFull[StorageElementNumber] ? "Full " : "Empty"));
-
-            if (ElementStatus->PrimaryVolumeTag[StorageElementNumber][0])
-            {
-                printf(":VolumeTag=%s", (char *)ElementStatus->PrimaryVolumeTag[StorageElementNumber]);
+                printf("Full (Unknown Storage Element Loaded)");
             }
 
-            if (ElementStatus->AlternateVolumeTag[StorageElementNumber][0])
+            if (ElementStatus->DataTransferPrimaryVolumeTag[TransferElementNumber][0])
             {
-                printf(":AlternateVolumeTag=%s", (char *)ElementStatus->AlternateVolumeTag[StorageElementNumber]);
+                printf(":VolumeTag = %s", (char *)ElementStatus->DataTransferPrimaryVolumeTag[TransferElementNumber]);
+            }
+
+            if (ElementStatus->DataTransferAlternateVolumeTag[TransferElementNumber][0])
+            {
+                printf(":AlternateVolumeTag = %s", (char *)ElementStatus->DataTransferAlternateVolumeTag[TransferElementNumber]); 
             }
             putchar('\n');
         }
-
-#ifdef VMS
-        VMS_DefineStatusSymbols();
-#endif
+        else
+        {
+            printf("Empty\n");
+        }
     }
+
+    for (StorageElementNumber = 0;
+         StorageElementNumber < ElementStatus->StorageElementCount;
+         StorageElementNumber++)
+    {
+        printf(	"      Storage Element %d%s:%s", StorageElementNumber + 1,
+                (ElementStatus->StorageElementIsImportExport[StorageElementNumber]) ? " IMPORT/EXPORT" : "",
+                (ElementStatus->StorageElementFull[StorageElementNumber] ? "Full " : "Empty"));
+
+        if (ElementStatus->PrimaryVolumeTag[StorageElementNumber][0])
+        {
+            printf(":VolumeTag=%s", (char *)ElementStatus->PrimaryVolumeTag[StorageElementNumber]);
+        }
+
+        if (ElementStatus->AlternateVolumeTag[StorageElementNumber][0])
+        {
+            printf(":AlternateVolumeTag=%s", (char *)ElementStatus->AlternateVolumeTag[StorageElementNumber]);
+        }
+        putchar('\n');
+    }
+
 }
 
 void Position(int dest)
@@ -1054,6 +1076,19 @@ int parse_args(void)
 	i = 1;
 	while (i < argc)
 	{
+		bool current_cmd_is_json = false;
+		if (strcmp(argv[i], "--json") == 0) {
+			current_cmd_is_json = true;
+			i++; // Consume --json
+			if (i >= argc) { // --json was the last arg
+				fprintf(stderr, 
+                        "Error: --json flag requires a command.\n");
+				Usage();
+				exit(1);
+#endif
+			}
+		}
+
 		if (strcmp(argv[i], "-f") == 0)
 		{
 			i++;
@@ -1064,15 +1099,6 @@ int parse_args(void)
 
 			device = argv[i++];
 			open_device(); /* open the device and do a status scan on it... */
-		}
-		else if (strcmp(argv[i], "--json") == 0)
-		{
-			json_output = true;
-			i++;
-			if (i >= argc) /* No command after --json */
-			{
-				Usage();
-			}
 		}
 		else
 		{
@@ -1097,11 +1123,18 @@ int parse_args(void)
 				Usage();
 			}
 
-			// Only apply --json to status command
-			if (strcmp(command->name, "status") != 0 && json_output) {
-				fprintf(stderr, "mtx: --json flag is only valid for the 'status' command\n");
-				json_output = false; // Reset flag if misused
-				Usage(); // Or handle as an error appropriately
+			if (strcmp(command->name, "status") == 0) {
+				S_status_json_requested = current_cmd_is_json;
+			} else if (current_cmd_is_json) {
+				// --json was specified with a command other than status
+				fprintf(stderr, "Error: --json flag is only valid with "
+                                "the 'status' command.\n");
+				Usage();
+				exit(1);
+#endif
+			} else {
+				// For any other command, ensure S_status_json_requested is false
+				S_status_json_requested = false; 
 			}
 			
 			i++;  /* go to the next argument, if possible... */
@@ -1164,25 +1197,9 @@ int main(int ArgCount, char *ArgVector[])
 
 	parse_args();	/* also executes them as it sees them */
 
-#ifndef VMS
 	if (device)
 	{
 		SCSI_CloseDevice(device, MediumChangerFD);
 	}
 	return 0;
-#else
-	if (device)
-	{
-		ElementStatus = ReadElementStatus(MediumChangerFD,&RequestSense);
-		if (!ElementStatus)
-		{
-			PrintRequestSense(&RequestSense);
-			FatalError("READ ELEMENT STATUS Command Failed\n"); 
-		}
-		VMS_DefineStatusSymbols();
-		SCSI_CloseDevice(device, MediumChangerFD);
-	}
-
-	return SS$_NORMAL;
-#endif
 }

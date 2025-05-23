@@ -13,23 +13,6 @@ case "$host_os" in
   *linux*) AC_DEFINE(LINUX)
 	TARGET=linux
     ;;
-  *solaris*) AC_DEFINE(SOLARIS)
-	TARGET=solarissparc
-	;;
-  *sunos*)  TARGET=solarissparc
-	 ;;
-  *freebsd*) TARGET=freebsd86
-	;;
-  *aix*) TARGET=aix
-       ;;
-  *irix*) TARGET=sgi
-      ;;
-  *hp*) TARGET=hpux
-     ;;
-  *HP*) TARGET=hpux
-     ;;
-  *sequent*) AC_DEFINE(SEQUENT) 
-	;;
   *MINGW*) TARGET=mingw
      ;;
   *MinGW*) TARGET=mingw
@@ -69,25 +52,14 @@ AC_CHECK_HEADERS(\
 	scsi/scsi.h \
 	scsi/scsi_ioctl.h \
 	scsi/sg.h \
-	sys/gscdds.h \
-	camlib.h \
-	cam/cam_ccb.h \
-	cam/scsi/scsi_message.h \
-	sys/fsid.h \
-	sys/fstyp.h \
 	sys/stat.h \
 	sys/types.h \
-	sys/mnttab.h \
 	sys/param.h \
 	sys/time.h \
-	sys/scsi/impl/uscsi.h \
 	sys/scsi.h \
-	sys/scsi_ctl.h \
 	sys/ioctl.h \
 	sys/mtio.h \
 	sys/param.h \
-	dslib.h \
-	du/defs.h \
 	ddk/ntddscsi.h)
 
 dnl Checks for typedefs, structures, and compiler characteristics.

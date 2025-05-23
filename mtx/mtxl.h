@@ -34,10 +34,6 @@ void FatalError(char *ErrorMessage, ...);
 void *xmalloc(size_t Size);
 void *xzmalloc(size_t Size);
 
-#if !HAVE_MEMSET
-void *memset(void *_Dst, int _Val, size_t _Size);
-#endif
-
 DEVICE_TYPE SCSI_OpenDevice(char *DeviceName);
 void SCSI_CloseDevice(char *DeviceName, DEVICE_TYPE DeviceFD);
 int SCSI_ExecuteCommand(DEVICE_TYPE DeviceFD,

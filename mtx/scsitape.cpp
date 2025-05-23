@@ -442,35 +442,6 @@ static int S_seek(void)
 	return 0;
 }
 
-#ifdef MTSRSZ
-static int Solaris_setblk(int fh,int count)
-{
-	/* we get here only if we have a MTSRSZ, which means Solaris. */
-	struct mtop mt_com;  /* the struct used for the MTIOCTOP ioctl */
-	int result;
-
-	/* okay, we have fh and count.... */
-
-	/* Now to try the ioctl: */
-	mt_com.mt_op=MTSRSZ;
-	mt_com.mt_count=count;
-
-	/* surround the actual ioctl to enable threading, since fsf/etc. can be
-	 * big time consumers and we want other threads to be able to run too. 
-	 */
-
-	result=ioctl(fh, MTIOCTOP, (char *)&mt_com);
-
-	if (result < 0)
-	{
-		return errno;
-	}
-
-	/* okay, we did okay. Return a value of None... */
-	return 0;
-}
-#endif
-
 
 /* okay, this is a write: we need to set the block size to something: */
 static int S_setblk(void)
@@ -509,9 +480,6 @@ static int S_setblk(void)
 		PrintRequestSense(&sense);
 		return 1;
 	}
-#ifdef MTSRSZ
-	/*   Solaris_setblk(MediumChangerFD,count);   */
-#endif
 
 	return 0;
 }

@@ -13,10 +13,7 @@
 #ifndef MTX_H  /* protect against multiple includes... */
 #define MTX_H 1
 
-/* surround all the Unix-stuff w/ifndef VMS */
-#ifdef VMS
-#include "[.vms]defs.h"
-#else /* all the Unix stuff:  */
+/* All the Unix stuff (now Linux/MinGW primarily): */
 
 #ifdef _MSC_VER
 #include "msvc/config.h"  /* all the autoconf stuff. */
@@ -96,54 +93,6 @@ typedef int DEVICE_TYPE;
 typedef int DEVICE_TYPE;
 #endif
 
-/* The 'cam' interface, like FreeBSD: */
-#if HAVE_CAMLIB_H
-#  include <camlib.h> /* easy (?) access to the CAM user library. */
-#  include <cam/cam_ccb.h>
-#  include <cam/scsi/scsi_message.h> /* sigh sigh sigh! */
-typedef struct cam_device *DEVICE_TYPE;
-#endif
-
-
-/* the 'uscsi' interface, as used on Solaris: */
-#if HAVE_SYS_SCSI_IMPL_USCSI_H
-#include <sys/scsi/impl/uscsi.h>
-typedef int DEVICE_TYPE;
-#endif
-
-/* the scsi_ctl interface, as used on HP/UX: */
-#if HAVE_SYS_SCSI_CTL_H
-#  include <sys/wsio.h>
-#  include <sys/spinlock.h>
-#  include <sys/scsi.h>
-#  include <sys/scsi_ctl.h>
-  typedef int DEVICE_TYPE;
-#  ifndef VERSION
-#     define VERSION "1.2.12 hbb"
-#  endif
-#endif
-
-/* the 'gsc' interface, as used on AIX: */
-#if HAVE_SYS_GSCDDS_H
-#   include <sys/gscdds.h>
-    typedef int DEVICE_TYPE;
-#endif
-
-   /* the 'dslib' interface, as used on SGI.  */
-#if HAVE_DSLIB_H
-#include <dslib.h>
-typedef dsreq_t *DEVICE_TYPE; /* 64-bit pointers/32bit int on later sgi? */
-#endif
-
-
-#if ((defined(__alpha) && defined(__osf__)) || \
-     defined(ultrix) || defined(__ultrix))
-#include "du/defs.h"
-#endif
-
-
-#endif /* VMS protect. */
-
 /* Do a test for LITTLE_ENDIAN_BITFIELDS. Use WORDS_BIGENDIAN as set
  * by configure: 
  */
@@ -152,32 +101,6 @@ typedef dsreq_t *DEVICE_TYPE; /* 64-bit pointers/32bit int on later sgi? */
 # define BIG_ENDIAN_BITFIELDS
 #else
 # define LITTLE_ENDIAN_BITFIELDS
-#endif
-
-/* Get rid of some Hocky Pux defines: */
-#ifdef S_NO_SENSE
-#undef S_NO_SENSE
-#endif
-#ifdef S_RECOVERED_ERROR
-#undef S_RECOVERED_ERROR
-#endif
-#ifdef S_NOT_READY
-#undef S_NOT_READY
-#endif
-#ifdef S_MEDIUM_ERROR
-#undef S_MEDIUM_ERROR
-#endif
-#ifdef S_HARDWARE_ERROR
-#undef S_HARDWARE_ERROR
-#endif
-#ifdef S_UNIT_ATTENTION
-#undef S_UNIT_ATTENTION
-#endif
-#ifdef S_BLANK_CHECK
-#undef S_BLANK_CHECK
-#endif
-#ifdef S_VOLUME_OVERFLOW
-#undef S_VOLUME_OVERFLOW
 #endif
 
 /* Note: These are only used for defaults for when we don't have 

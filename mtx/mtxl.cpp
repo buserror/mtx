@@ -41,16 +41,6 @@
 
 /* First, do some SCSI routines: */
 
-/* the camlib is used on FreeBSD. */
-#if HAVE_CAMLIB_H
-#	include "scsi_freebsd.cpp"
-#endif
-
-/* the scsi_ctl interface is used on HP/UX. */
-#if HAVE_SYS_SCSI_CTL_H
-#	include "scsi_hpux.cpp"
-#endif
-
 /* the 'sg' interface is used on Linux. */
 #if HAVE_SCSI_SG_H
 #	include "scsi_linux.cpp"
@@ -59,30 +49,6 @@
 /* the IOCTL_SCSI_PASSTHROUGH interface is used on Windows. */
 #if HAVE_DDK_NTDDSCSI_H || defined(_MSC_VER)
 #	include "scsi_win32.cpp"
-#endif
-
-/* The 'uscsi' interface is used on Solaris. */
-#if HAVE_SYS_SCSI_IMPL_USCSI_H
-#	include "scsi_sun.cpp"
-#endif
-
-/* The 'gsc' interface, is used on AIX. */
-#if HAVE_SYS_GSCDDS_H
-#	include "scsi_aix.cpp"
-#endif
-
-/* The 'dslib' interface is used on SGI. */
-#if HAVE_DSLIB_H
-#	include "scsi_sgi.cpp"
-#endif
-
-/* Hmm, dunno what to do about Digital Unix at the moment. */
-#ifdef DIGITAL_UNIX
-#	include "du/scsi.cpp"
-#endif
-
-#ifdef VMS
-#	include "[.vms]scsi.cpp"
 #endif
 
 extern char *argv0; /* something to let us do good error messages. */
@@ -228,23 +194,8 @@ void FatalError(char *ErrorMessage, ...)
 	vfprintf(stderr, FormatBuffer, ArgumentPointer);
 	va_end(ArgumentPointer);
 
-#ifndef VMS
 	exit(1);
-#else
-	sys$exit(VMS_ExitCode);
-#endif
 }
-
-#if !HAVE_MEMSET
-/* This is a really slow and stupid 'bzero' implementation'... */
-void *memset(void *_Dst, int _Val, size_t _Size)
-{
-	while (_Size-- > 0)
-	{
-		*buffer++ = _Val;
-	}
-}
-#endif
 
 /* malloc some memory while checking for out-of-memory conditions. */
 void *xmalloc(size_t Size)
